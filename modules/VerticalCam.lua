@@ -14,12 +14,12 @@ local overlay_states = {
     { ui = "Vertical Height: %0.2f", prop = "vert_height", decr = -0.01, incr = 0.01 },
     { ui = "Vertical Zoom: %0.2f", prop = "vert_zoom", decr = -0.10, incr = 0.10 },
     { ui = "Vertical Angle: %0.2f", prop = "vert_angle", decr = -0.01, incr = 0.01 },
-	{ ui = "Vertical Pitch: %0.2f", prop = "vert_pitch", decr = -0.50, incr = 0.50 },
+    { ui = "Vertical Pitch: %0.2f", prop = "vert_pitch", decr = -0.50, incr = 0.50 },
 }
 
 local game_info = {
     vert_height = { base = "vbase", offs = 0x08, format = "f", len = 4, def = 0.3, save_as = "%0.2f" },
-	vert_pitch = { base = "vbase", offs = 0x0c, format = "f", len = 4, def = 35, save_as = "%0.2f" },
+    vert_pitch = { base = "vbase", offs = 0x0c, format = "f", len = 4, def = 35, save_as = "%0.2f" },
     vert_zoom = { base = "vbase", offs = 0x10, format = "f", len = 4, def = 16.01, save_as = "%0.2f" },
     vert_angle  = { base = "vangle", offs = 0x00, format = "f", len = 4, def = 0.83, save_as = "%0.2f" },
 }
