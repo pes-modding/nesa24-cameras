@@ -6,7 +6,7 @@ modified to use nesalib by juce
 =========================
 --]]
 
-local m = { version = "2.0" }
+local m = { version = "2.1" }
 local hex = memory.hex
 local helper
 
@@ -56,7 +56,7 @@ function m.init(ctx)
         log(string.format("vertical camera height/zoom/pitch base addr: %s", hex(addr)))
         helper.set_base("vbase", addr)
     else
-        error("unable to find stadium camera angle addr")
+        error("unable to find vertical camera angle addr")
     end
 
     -- Angle
@@ -77,7 +77,7 @@ function m.init(ctx)
         log(string.format("vertical camera angle addr: %s", hex(addr)))
         helper.set_base("vangle", addr)
     else
-        error("unable to find stadium camera angle addr")
+        error("unable to find vertical camera angle addr")
     end
 
     -- save locations cache
