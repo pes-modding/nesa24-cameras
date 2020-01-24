@@ -293,7 +293,7 @@ function m.cache(ctx, module_name)
                 f:close()
                 local hint = string.sub(cache_data, (cache_id-1)*8+1, (cache_id-1)*8+8)
                 if hint and hint ~= "" then
-                    local addr = memory.unpack("i64", hint)
+                    local addr = memory.unpack("u64", hint)
                     if addr and addr ~= 0 then
                         local data = memory.read(addr, #pattern)
                         if pattern == data then
