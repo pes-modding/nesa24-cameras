@@ -3,8 +3,12 @@ nesalib: A library of common functions for memory/code modification modules.
 --]]
 
 local m = {}
-m.version = "1.0"
+m.version = "1.1"
 local hex = memory.hex
+
+local COMMON = 0
+local STADIUM = 1
+local mode_names = { [COMMON]="common", [STADIUM]="stadium" }
 
 
 function m.helper(version, ini_filename, overlay_states, game_info)
@@ -21,8 +25,9 @@ function m.helper(version, ini_filename, overlay_states, game_info)
         Penalty_height   = { base = "pheight", offs = 0x00, format = "f", len = 4, def = 3, save_as = "%0.2f" },
     }
     --]]
- 
+
     local t = {
+        MODE_KEY = { name='7', code=0x37 },
         RESTORE_KEY = { name='8', code=0x38 },
         PREV_PROP_KEY = { name='9', code=0x39 },
         NEXT_PROP_KEY = { name='0', code=0x30 },
@@ -32,16 +37,21 @@ function m.helper(version, ini_filename, overlay_states, game_info)
 
     local delta = 0
     local frame_count = 0
-     
+
     local overlay_curr = 1
     local version = version
- 
+
 
     local ui_lines = {}
     local bases = {}
+    local registered
 
+    local settings_map
     local settings
     local header_comment = "# Settings: " .. tostring(ini_filename)
+
+    local mode = COMMON
+    local section_key = "default"
 
 
     function t.set_ini_comment(value)
@@ -64,6 +74,58 @@ function m.helper(version, ini_filename, overlay_states, game_info)
     end
 
 
+    local function switch_settings(ctx)
+        -- determine section key
+        section_key = "default"
+        if mode == STADIUM then
+            local stad = ctx.stadium_server
+            if stad then
+                section_key = string.format("%03d::%s", tonumber(stad.id), stad.name)
+            else
+                local id = ctx.stadium_id
+                if id then
+                    section_key = string.format("%03d", id)
+                end
+            end
+        end
+        local section = settings_map[section_key]
+        if not section then
+            -- create new section and copy default section values into it
+            log("creating new section")
+            section = {}
+            for k,_ in pairs(game_info) do
+                section[k] = settings_map["default"][k]
+                log(string.format("%s = %s", k, section[k]))
+            end
+            settings_map[section_key] = section
+        end
+        settings = section
+        t.apply_settings(ctx, true)
+    end
+
+
+    function t.after_set_conditions(ctx)
+        switch_settings(ctx)
+    end
+
+
+    local function save_section(f, sname, section)
+        local names = {}
+        for k,_ in pairs(game_info) do
+            names[#names + 1] = k
+        end
+        table.sort(names)
+        if sname ~= "default" then
+            f:write(string.format("[%s]\n", sname))
+        end
+        for _,k in ipairs(names) do
+            local v = section[k] or game_info[k].def
+            f:write(string.format("%s = %s\n", k, string.format(game_info[k].save_as, v)))
+        end
+        f:write("\n")
+    end
+
+
     function t.save_ini(ctx)
         local f,err = io.open(ctx.sider_dir .. "\\" .. ini_filename, "wt")
         if not f then
@@ -71,42 +133,59 @@ function m.helper(version, ini_filename, overlay_states, game_info)
             return
         end
         f:write(string.format("# %s\n\n", header_comment))
+        -- default section first
+        save_section(f, "default", settings_map["default"])
+        -- other sections in alphabetical order
         local names = {}
-        for k,_ in pairs(game_info) do
-            names[#names + 1] = k
-        end
-        table.sort(names)
-        for _,k in ipairs(names) do
-            local v = settings[k] or game_info[k].def
-            f:write(string.format("%s = %s\n", k, string.format(game_info[k].save_as, v)))
-        end
-        f:write("\n")
-        f:close()
-    end
- 
-
-    function t.load_ini(ctx)
-        settings = {}
-        -- initialize with defaults
-        for prop,info in pairs(game_info) do
-            settings[prop] = info.def
-        end
-        -- now try to read ini-file, if present
-        local f,err = io.open(ctx.sider_dir .. "\\" .. ini_filename)
-        if not f then
-            return
-        end
-        f:close()
-        for line in io.lines(ctx.sider_dir .. "\\" .. ini_filename) do
-            local name, value = string.match(line, "^([%w_]+)%s*=%s*([-%w%d.]+)")
-            if name and value then
-                value = tonumber(value) or value
-                settings[name] = value
-                log(string.format("loaded setting: %s = %s", name, value))
+        for k,_ in pairs(settings_map) do
+            if k ~= "default" then
+                names[#names + 1] = k
             end
         end
+        table.sort(names)
+        for _,sname in ipairs(names) do
+            save_section(f, sname, settings_map[sname])
+        end
+        f:close()
     end
- 
+
+
+    function t.load_ini(ctx)
+        if not registered then
+            ctx.register("after_set_conditions", t.after_set_conditions)
+            registered = true
+        end
+
+        settings_map = {}
+        -- initialize with defaults
+        local section_name = "default"
+        settings_map[section_name] = {}
+        for prop,info in pairs(game_info) do
+            settings_map[section_name][prop] = info.def
+        end
+        -- now try to read ini-file, if present
+        local f = io.open(ctx.sider_dir .. "\\" .. ini_filename)
+        if f then
+            for line in f:lines() do
+                sname = string.match(line, "^%[([^%]]+)%]")
+                if sname then
+                    -- new section starts
+                    section_name = sname
+                    settings_map[section_name] = {}
+                else
+                    local name, value = string.match(line, "^([%w_]+)%s*=%s*([-%w%d.]+)")
+                    if name and value then
+                        value = tonumber(value) or value
+                        settings_map[section_name][name] = value
+                        log(string.format("loaded setting: %s = %s", name, value))
+                    end
+                end
+            end
+            f:close()
+        end
+        settings = settings_map["default"]
+    end
+
 
     function t.apply_settings(ctx, log_it, save_it)
         for name,value in pairs(settings) do
@@ -144,7 +223,7 @@ function m.helper(version, ini_filename, overlay_states, game_info)
         end
     end
 
- 
+
     function t.repeat_change(ctx, after_num_frames, change)
         if change ~= 0 then
             frame_count = frame_count + 1
@@ -155,7 +234,7 @@ function m.helper(version, ini_filename, overlay_states, game_info)
             end
         end
     end
-     
+
 
     function t.overlay_on(ctx)
         -- repeat change from gamepad, if delta exists
@@ -170,12 +249,18 @@ function m.helper(version, ini_filename, overlay_states, game_info)
                 ui_lines[i] = string.format("\n     %s", setting)
             end
         end
+        -- stadium settings or common
+        local keystr = "common"
+        if mode == STADIUM and section_key ~= "default" then
+            keystr = string.format("for stadium %s", section_key)
+        end
         return string.format([[version %s
-    Keys: [%s][%s] - choose setting, [%s][%s] - modify value, [%s] - restore defaults
+    Keys: [%s][%s] - choose setting, [%s][%s] - modify value, [%s] - restore defaults, [%s] - common/stadium
     Gamepad: RS up/down - choose setting, RS left/right - modify value
+    Mode: %s, Settings: %s
     %s]], version, t.PREV_PROP_KEY.name, t.NEXT_PROP_KEY.name,
-            t.PREV_VALUE_KEY.name, t.NEXT_VALUE_KEY.name, t.RESTORE_KEY.name,
-            table.concat(ui_lines))
+            t.PREV_VALUE_KEY.name, t.NEXT_VALUE_KEY.name, t.RESTORE_KEY.name, t.MODE_KEY.name,
+            mode_names[mode], keystr, table.concat(ui_lines))
     end
 
 
@@ -209,9 +294,13 @@ function m.helper(version, ini_filename, overlay_states, game_info)
                 settings[s.prop] = game_info[s.prop].def
             end
             t.apply_settings(ctx, false, true)
+        elseif vkey == t.MODE_KEY.code then
+            mode = (mode + 1) % 2
+            switch_settings(ctx)
+            log(string.format("camera-settings: mode=%s, section_key=%s", mode, section_key))
         end
     end
- 
+
 
     function t.gamepad_input(ctx, inputs)
         local v = inputs["RSy"]
@@ -222,7 +311,7 @@ function m.helper(version, ini_filename, overlay_states, game_info)
                 overlay_curr = overlay_curr - 1
             end
         end
-     
+
         v = inputs["RSx"]
         if v then
             if v == -1 then -- moving left
