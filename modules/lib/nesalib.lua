@@ -51,7 +51,7 @@ function m.helper(version, ini_filename, overlay_states, game_info)
     local header_comment = "# Settings: " .. tostring(ini_filename)
 
     local mode = COMMON
-    local section_key = "default"
+    local settings_key = "default"
 
 
     function t.set_ini_comment(value)
@@ -74,38 +74,62 @@ function m.helper(version, ini_filename, overlay_states, game_info)
     end
 
 
-    local function switch_settings(ctx)
+    local function get_stadium_settings(ctx)
+        local key
+        local stad = ctx.stadium_server
+        if stad then
+            key = string.format("%03d::%s", tonumber(stad.id), stad.name)
+        else
+            local id = ctx.stadium
+            if id then
+                key = string.format("%03d", id)
+            end
+        end
+        return settings_map[key], key
+    end
+
+
+    local function switch_settings(ctx, log_it)
         -- determine section key
-        section_key = "default"
+        local s, skey
+        local key = "default"
         if mode == STADIUM then
-            local stad = ctx.stadium_server
-            if stad then
-                section_key = string.format("%03d::%s", tonumber(stad.id), stad.name)
-            else
-                local id = ctx.stadium_id
-                if id then
-                    section_key = string.format("%03d", id)
-                end
-            end
+            s, skey = get_stadium_settings(ctx)
+            key = skey or key
         end
-        local section = settings_map[section_key]
-        if not section then
-            -- create new section and copy default section values into it
-            log("creating new section")
-            section = {}
+        s = s or settings_map[key]
+        if not s then
+            -- create new section and copy default settings values into it
+            log(string.format("creating new section: %s", key))
+            s = {}
             for k,_ in pairs(game_info) do
-                section[k] = settings_map["default"][k]
-                log(string.format("%s = %s", k, section[k]))
+                s[k] = settings_map["default"][k]
+                log(string.format("%s = %s", k, s[k]))
             end
-            settings_map[section_key] = section
+            settings_map[key] = s
         end
-        settings = section
-        t.apply_settings(ctx, true)
+        log(string.format("changing camera settings: mode=%s, settings_key=%s", mode, key))
+        settings, settings_key = s, key
+        t.apply_settings(ctx, log_it)
     end
 
 
     function t.after_set_conditions(ctx)
+        -- check if we have stadium-specific settings
+        local s, key = get_stadium_settings(ctx)
+        if s then
+            mode = STADIUM
+            settings, settings_key = s, key
+        end
         switch_settings(ctx)
+    end
+
+
+    function t.set_teams(ctx)
+        settings_key = "default"
+        settings = settings_map[settings_key]
+        log(string.format("reset camera settings: mode=%s, settings_key=%s", mode, key))
+        t.apply_settings(ctx)
     end
 
 
@@ -153,6 +177,7 @@ function m.helper(version, ini_filename, overlay_states, game_info)
     function t.load_ini(ctx)
         if not registered then
             ctx.register("after_set_conditions", t.after_set_conditions)
+            ctx.register("set_teams", t.set_teams)
             registered = true
         end
 
@@ -251,8 +276,8 @@ function m.helper(version, ini_filename, overlay_states, game_info)
         end
         -- stadium settings or common
         local keystr = "common"
-        if mode == STADIUM and section_key ~= "default" then
-            keystr = string.format("for stadium %s", section_key)
+        if mode == STADIUM and settings_key ~= "default" then
+            keystr = string.format("for stadium %s", settings_key)
         end
         return string.format([[version %s
     Keys: [%s][%s] - choose setting, [%s][%s] - modify value, [%s] - restore defaults, [%s] - common/stadium
@@ -296,8 +321,7 @@ function m.helper(version, ini_filename, overlay_states, game_info)
             t.apply_settings(ctx, false, true)
         elseif vkey == t.MODE_KEY.code then
             mode = (mode + 1) % 2
-            switch_settings(ctx)
-            log(string.format("camera-settings: mode=%s, section_key=%s", mode, section_key))
+            switch_settings(ctx, true)
         end
     end
 
