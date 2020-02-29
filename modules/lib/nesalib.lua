@@ -78,7 +78,7 @@ function m.helper(version, ini_filename, overlay_states, game_info)
         local key
         local stad = ctx.stadium_server
         if stad then
-            key = string.format("%03d::%s", tonumber(stad.id), stad.name)
+            key = string.format("%03d::%s", tonumber(stad.id), stad.path)
         else
             local id = ctx.stadium
             if id then
@@ -108,7 +108,7 @@ function m.helper(version, ini_filename, overlay_states, game_info)
             end
             settings_map[key] = s
         end
-        log(string.format("changing camera settings: mode=%s, settings_key=%s", mode, key))
+        log(string.format("changing settings: mode=%s, settings_key=%s", mode, key))
         settings, settings_key = s, key
         t.apply_settings(ctx, log_it)
     end
@@ -128,7 +128,8 @@ function m.helper(version, ini_filename, overlay_states, game_info)
     function t.set_teams(ctx)
         settings_key = "default"
         settings = settings_map[settings_key]
-        log(string.format("reset camera settings: mode=%s, settings_key=%s", mode, key))
+        log(string.format("reset settings: mode=%s, settings_key=%s", mode, key))
+        t.load_ini(ctx)
         t.apply_settings(ctx)
     end
 
