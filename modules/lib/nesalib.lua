@@ -198,6 +198,7 @@ function m.helper(version, ini_filename, overlay_states, game_info)
                     -- new section starts
                     section_name = sname
                     settings_map[section_name] = {}
+                    log(string.format("new section: %s", section_name))
                 else
                     local name, value = string.match(line, "^([%w_]+)%s*=%s*([-%w%d.]+)")
                     if name and value then
