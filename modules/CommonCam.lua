@@ -16,7 +16,7 @@ local helper
 local overlay_states = {
     { ui = "Camera Zoom: %0.2f", prop = "zoom", decr = -0.5, incr = 0.5 },
     { ui = "Camera Height: %0.2f", prop = "height", decr = -0.01, incr = 0.01 },
-    { ui = "Camera Angle: %0.2f", prop = "angle", decr = -0.01, incr = 0.01 },
+    { ui = "Camera Angle: %0.2f", prop = "angle", decr = -0.1, incr = 0.1 },
     { ui = "Camera Pitch: %0.2f", prop = "pitch", decr = -0.1, incr = 0.1 },
 }
 
