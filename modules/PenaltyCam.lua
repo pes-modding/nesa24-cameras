@@ -1,20 +1,22 @@
 --[[
-Penalty camera zoom/height changer.
+Penalty camera zoom/height/angle changer.
 research and initial version: nesa24, Chuny, digitalfoxx
 modified to use nesalib by juce
 --]]
 
-local m = { version = "2.0" }
+local m = { version = "3.1" }
 local helper
  
 local overlay_states = {
     { ui = "Penalty Height: %0.2f", prop = "Penalty_height", decr = -0.2, incr = 0.2 },
     { ui = "Penalty Zoom: %0.2f", prop = "Penalty_zoom", decr = -0.3, incr = 0.3 },
+    { ui = "Penalty Angle: %0.2f", prop = "Penalty_angle", decr = -0.5, incr = 0.5 },
 }
 
 local game_info = {
     Penalty_zoom = { base = "pzoom", offs = 0x00, format = "f", len = 4, def = 17.60000038, save_as = "%0.2f" },
     Penalty_height = { base = "pheight", offs = 0x00, format = "f", len = 4, def = 3, save_as = "%0.2f" },
+    Penalty_angle = { base = "pangle", offs = 0x00, format = "f", len = 4, def = 0, save_as = "%0.2f" },
 }
  
 function m.init(ctx)
@@ -22,7 +24,7 @@ function m.init(ctx)
         error("PROBLEM: nesalib not found. Install nesalib")
     end
 
-    helper = ctx.nesalib.helper(m.version, "modules\\Penalty_zh.ini", overlay_states, game_info)
+    helper = ctx.nesalib.helper(m.version, "modules\\PenaltyCam.ini", overlay_states, game_info)
     helper.load_ini(ctx)
     helper.set_ini_comment("Penalty Camera settings")
         
@@ -53,6 +55,28 @@ function m.init(ctx)
         log(string.format("penalty camera height address: %s", memory.hex(helper.get_base("pheight"))))
     else
         error("problem: unable to find code pattern for penalty camera height")
+    end
+
+    -- Angle
+    -- 0000000147282B75 | 8B 86 84 08 00 00                  | mov eax,dword ptr ds:[rsi+884]         |
+    -- 0000000147282B7B | 41 89 44 24 0C                     | mov dword ptr ds:[r12+C],eax           |
+    -- 0000000147282B80 | 8B 86 88 08 00 00                  | mov eax,dword ptr ds:[rsi+888]         |
+    -- 0000000147282B86 | 41 89 44 24 10                     | mov dword ptr ds:[r12+10],eax          |
+    loc = cache.find_pattern(
+        "\x8b\x86\x84\x08\x00\x00" ..
+        "\x41\x89\x44\x24\x0c" ..
+        "\x8b\x86\x88\x08\x00\x00" ..
+        "\x41\x89\x44\x24\x10", 3)
+    if loc then
+        -- Patch to set angle
+        -- 0000000147282B8B | 41 C7 44 24 14 00 00 00 00         | mov dword ptr ds:[r12+14],00000000     |
+        -- 0000000147282B94 | 90                                 | nop                                    |
+        -- 0000000147282B95 | 90                                 | nop                                    |
+        local patch = "\x41\xc7\x44\x24\x14\x00\x00\x00\x00\x90\x90";
+        memory.write(loc + 22, patch)
+        helper.set_base("pangle", loc + 22 + 5)
+    else
+        error("problem: unable to find code pattern for penalty camera angle")
     end
 
     -- save found locations to disk
