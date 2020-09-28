@@ -1,26 +1,32 @@
 --[[
 =========================
-BroadCastCam module and Game research by: nesa24
+BroadCastCam module and Game research by: nesa24, digitalfoxx
 Requires: sider.dll 6.2.3+
 updated to use nesalib by juce
 =========================
 --]]
 
-local m = { version = "2.0" }
+local m = { version = "2.2" }
 local hex = memory.hex
 
 local overlay_states = {
     { ui = "Broadcast Height: %0.2f", prop = "broad_height", decr = -0.01, incr = 0.01 },
     { ui = "Broadcast Zoom: %0.2f", prop = "broad_zoom", decr = -0.25, incr = 0.25 },
     { ui = "Broadcast Angle: %0.2f", prop = "broad_angle", decr = -0.50, incr = 0.50 },
-	{ ui = "Broadcast Pitch: %0.2f", prop = "broad_pitch", decr = -0.05, incr = 0.05 },
+    { ui = "Broadcast Pitch: %0.2f", prop = "broad_pitch", decr = -0.05, incr = 0.05 },
+    { ui = "Broadcast Param1: %0.2f", prop = "broad_param1", decr = -0.1, incr = 0.1 },
+    { ui = "Broadcast Param2: %0.2f", prop = "broad_param2", decr = -0.1, incr = 0.1 },
+    { ui = "Broadcast Param3: %0.2f", prop = "broad_param3", decr = -0.1, incr = 0.1 },
 }
 
 local game_info = {
     broad_zoom = { base = "bzoom_pitch", offs = 0x04, format = "f", len = 4, def = 14.41, save_as = "%0.2f" },
-	broad_pitch  = { base = "bzoom_pitch", offs = 0x0c, format = "f", len = 4, def = 0.5, save_as = "%0.2f" },
-    broad_angle  = { base = "bheight_angle", offs = 0x0a, format = "f", len = 4, def = 70, save_as = "%0.2f" },
-    broad_height   = { base = "bheight_angle", offs = 0x03, format = "f", len = 4, def = 0.3, save_as = "%0.2f" },
+    broad_pitch = { base = "bzoom_pitch", offs = 0x0c, format = "f", len = 4, def = 0.5, save_as = "%0.2f" },
+    broad_angle = { base = "bheight_angle", offs = 0x0a, format = "f", len = 4, def = 70, save_as = "%0.2f" },
+    broad_height = { base = "bheight_angle", offs = 0x03, format = "f", len = 4, def = 0.3, save_as = "%0.2f" },
+    broad_param1 = { base = "bheight_angle", offs = 17, format = "f", len = 4, def = -3.0, save_as = "%0.2f" },
+    broad_param2 = { base = "bheight_angle", offs = 24, format = "f", len = 4, def = 25.98, save_as = "%0.2f" },
+    broad_param3 = { base = "bheight_angle", offs = 31, format = "f", len = 4, def = 46.72, save_as = "%0.2f" },
 }
 
 function m.init(ctx)
@@ -36,18 +42,16 @@ function m.init(ctx)
     local cache = ctx.nesalib.cache(ctx, _FILE)
 
     -- BroadCast camera zoom/pitch base
-    -- 000000014712ABF2 | 48 31 E0                           | xor rax,rsp                            |
     -- 000000014712ABF5 | 48 89 45 27                        | mov qword ptr ss:[rbp+27],rax          |
     -- 000000014712ABF9 | 48 63 41 78                        | movsxd rax,dword ptr ds:[rcx+78]       |
     -- 000000014712ABFD | 4C 8D 05 DC A4 2E FC               | lea r8,qword ptr ds:[1434150E0]        |
     loc = cache.find_pattern(
-        "\x48\x31\xe0" ..
         "\x48\x89\x45\x27" ..
         "\x48\x63\x41\x78" ..
         "\x4c\x8d\x05", 1)
     if loc then
-        offset = memory.unpack("i32", memory.read(loc + 14))
-        addr = loc + 18 + offset
+        offset = memory.unpack("i32", memory.read(loc + 11))
+        addr = loc + 15 + offset
         log(string.format("broadcast camera zoom/pitch base addr: %s", hex(addr)))
         helper.set_base("bzoom_pitch", addr)
     else
@@ -55,7 +59,7 @@ function m.init(ctx)
     end
 
     -- Height/Pitch are set nearby:
-    addr = loc + (0xac39 - 0xabf2)
+    addr = loc + (0xac39 - 0xabf5)
     log(string.format("broadcast camera height/angle base addr: %s", hex(addr)))
     helper.set_base("bheight_angle", addr)
 
