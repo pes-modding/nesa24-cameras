@@ -1,12 +1,12 @@
 --[[
 =========================
-VerticalCam module and Game research by: nesa24
+VerticalCam module and Game research by: nesa24, digitalfoxx
 Requires: sider.dll 6.2.3+
 modified to use nesalib by juce
 =========================
 --]]
 
-local m = { version = "2.1" }
+local m = { version = "2.2" }
 local hex = memory.hex
 local helper
 
@@ -59,18 +59,32 @@ function m.init(ctx)
         error("unable to find vertical camera angle addr")
     end
 
-    -- Angle
-    -- 0000000146D84D54 | F3 0F 11 85 BC 00 00 00            | movss dword ptr ss:[rbp+BC],xmm0       |
-    -- 0000000146D84D5C | F3 0F 11 8D C0 00 00 00            | movss dword ptr ss:[rbp+C0],xmm1       |
-    -- 0000000146D84D64 | F3 0F 11 95 C4 00 00 00            | movss dword ptr ss:[rbp+C4],xmm2       |
-    -- 0000000146D84D6C | E9 52 FE FF FF                     | jmp pes2020.146D84BC3                  |
-    -- 0000000146D84D71 | 0F 28 C8                           | movaps xmm1,xmm0                       |
-    -- 0000000146D84D74 | F3 0F 59 0D E8 F0 81 FB            | mulss xmm1,dword ptr ds:[1425A3E64]    |
+    -- Angle (new pattern: exe 1.04.00)
+    -- 0000000140883A84 | F3:0F1185 CC000000       | movss dword ptr ss:[rbp+CC],xmm0           |
+    -- 0000000140883A8C | F3:0F118D D0000000       | movss dword ptr ss:[rbp+D0],xmm1           |
+    -- 0000000140883A94 | F3:0F1195 D4000000       | movss dword ptr ss:[rbp+D4],xmm2           |
+    -- 0000000140883A9C | E9 57FEFFFF              | jmp pes2021.1408838F8                      |
+    -- 0000000140883AA1 | 0F28C8                   | movaps xmm1,xmm0                           |
+    -- 0000000140883AA4 | F3:0F590D 78A5D801       | mulss xmm1,dword ptr ds:[14260E024]        |
     loc = cache.find_pattern(
-        "\xf3\x0f\x11\x85\xbc\x00\x00\x00" ..
-        "\xf3\x0f\x11\x8d\xc0\x00\x00\x00" ..
-        "\xf3\x0f\x11\x95\xc4\x00\x00\x00" ..
+        "\xf3\x0f\x11\x85\xcc\x00\x00\x00" ..
+        "\xf3\x0f\x11\x8d\xd0\x00\x00\x00" ..
+        "\xf3\x0f\x11\x95\xd4\x00\x00\x00" ..
         "\xe9", 2)
+    if not loc then
+        -- try older pattern (support for older exes)
+        -- 0000000146D84D54 | F3 0F 11 85 BC 00 00 00            | movss dword ptr ss:[rbp+BC],xmm0       |
+        -- 0000000146D84D5C | F3 0F 11 8D C0 00 00 00            | movss dword ptr ss:[rbp+C0],xmm1       |
+        -- 0000000146D84D64 | F3 0F 11 95 C4 00 00 00            | movss dword ptr ss:[rbp+C4],xmm2       |
+        -- 0000000146D84D6C | E9 52 FE FF FF                     | jmp pes2020.146D84BC3                  |
+        -- 0000000146D84D71 | 0F 28 C8                           | movaps xmm1,xmm0                       |
+        -- 0000000146D84D74 | F3 0F 59 0D E8 F0 81 FB            | mulss xmm1,dword ptr ds:[1425A3E64]    |
+        loc = cache.find_pattern(
+            "\xf3\x0f\x11\x85\xbc\x00\x00\x00" ..
+            "\xf3\x0f\x11\x8d\xc0\x00\x00\x00" ..
+            "\xf3\x0f\x11\x95\xc4\x00\x00\x00" ..
+            "\xe9", 2)
+    end
     if loc then
         local offset = memory.unpack("i32", memory.read(loc + 0x24))
         local addr = loc + 0x28 + offset
